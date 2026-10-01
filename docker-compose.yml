@@ -1,0 +1,45 @@
+services:
+  # EventStoreDB was renamed KurrentDB in 2025 — same database, same protocol.
+  kurrentdb:
+    image: docker.kurrent.io/kurrent-lts/kurrentdb:latest
+    container_name: nestjs-es-kurrentdb
+    environment:
+      KURRENTDB_CLUSTER_SIZE: 1
+      KURRENTDB_RUN_PROJECTIONS: All
+      KURRENTDB_START_STANDARD_PROJECTIONS: 'true'
+      KURRENTDB_NODE_PORT: 2113
+      KURRENTDB_INSECURE: 'true'
+      KURRENTDB_ENABLE_ATOM_PUB_OVER_HTTP: 'true' # stream browser in the admin UI
+    ports:
+      - '2113:2113' # gRPC + admin UI → http://localhost:2113
+    volumes:
+      - kurrentdb_data:/var/lib/kurrentdb
+      - kurrentdb_logs:/var/log/kurrentdb
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://localhost:2113/health/live || exit 1']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # Read-model store: the audit log is *queried* from here, never written to directly.
+  postgres:
+    image: postgres:18-alpine
+    container_name: nestjs-es-postgres
+    environment:
+      POSTGRES_USER: audit
+      POSTGRES_PASSWORD: audit
+      POSTGRES_DB: audit
+    ports:
+      - '5451:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U audit -d audit']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  kurrentdb_data:
+  kurrentdb_logs:
+  postgres_data:
